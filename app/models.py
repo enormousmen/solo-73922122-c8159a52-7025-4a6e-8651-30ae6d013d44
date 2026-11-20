@@ -40,3 +40,16 @@ class PermitRecord:
     approved_at: datetime
     finished_at: datetime | None
     boot_ids_at_approval: dict[str, str]  # 获批时各节点最新报告中的启动标识
+
+
+@dataclass(frozen=True)
+class WaitlistEntry:
+    """一条候补（待批）。position 为入队顺序（自增序号，重启后保留）。
+
+    候补不占用任何节点：只有实际发证后节点才计入占用。
+    """
+
+    request_id: str
+    nodes: tuple[str, ...]  # 有序、去重
+    enqueued_at: datetime
+    position: int

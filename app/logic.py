@@ -1,8 +1,8 @@
-"""许可批准 / 结束的判定逻辑（纯函数，便于单测）。"""
+"""许可批准 / 结束 / 候补发放的判定逻辑（纯函数，便于单测）。"""
 from __future__ import annotations
 
 from .manifest import Manifest
-from .models import LatestReport, PermitRecord
+from .models import LatestReport, PermitRecord, WaitlistEntry
 
 
 def evaluate_permit_request(
@@ -103,3 +103,36 @@ def evaluate_finish(
         elif rep.boot_id == permit.boot_ids_at_approval[n]:
             problems[n] = "boot_id_unchanged"
     return problems
+
+
+def plan_waitlist(
+    manifest: Manifest,
+    latest: dict[str, LatestReport],
+    open_permits: list[PermitRecord],
+    waitlist: list[WaitlistEntry],
+) -> list[WaitlistEntry]:
+    """按入队顺序判定候补，返回本次可批准的条目（保持入队顺序）。
+
+    逐个判定：仍不满足准入条件（探活、占用、票数）的批次跳过、留在队列；
+    每批准一个，立即把该批节点计入占用，再判定下一个，
+    因此同一轮里后判定的批次会看到先获批批次占用的节点。
+    """
+    approved: list[WaitlistEntry] = []
+    current_open = list(open_permits)
+    for entry in waitlist:
+        ok, _ = evaluate_permit_request(manifest, list(entry.nodes), latest, current_open)
+        if not ok:
+            continue  # 仍不符合条件：跳过，保留在队列中
+        approved.append(entry)
+        # 该批节点立即计入占用（占位记录，判定只读取 request_id 与 nodes）
+        current_open.append(
+            PermitRecord(
+                request_id=entry.request_id,
+                nodes=entry.nodes,
+                status="open",
+                approved_at=entry.enqueued_at,
+                finished_at=None,
+                boot_ids_at_approval={},
+            )
+        )
+    return approved

@@ -28,3 +28,7 @@ class LivenessBatchIn(BaseModel):
 class PermitRequestIn(BaseModel):
     request_id: str = Field(min_length=1, max_length=128, description="申请号")
     nodes: list[str] = Field(min_length=1, max_length=5000, description="拟重启节点")
+    enqueue_if_rejected: bool = Field(
+        default=False,
+        description="因探活/占用/票数不足未获批时，是否按申请号入队候补",
+    )
